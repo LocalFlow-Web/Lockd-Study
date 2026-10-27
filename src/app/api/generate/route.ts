@@ -84,7 +84,7 @@ Notes:
 
 Flashcards: 10–25 cards. One fact per card. Fronts are questions, backs are short answers.
 
-Quiz: 8–12 multiple-choice questions with exactly 4 options each. Test understanding, not just recall. "answerIndex" is the 0-based index of the correct option. Vary which position holds the correct answer. "explanation" says why the answer is right in one or two sentences.
+Quiz: 20 multiple-choice questions with exactly 4 options each (fewer only if the lecture is too short to support 20 distinct questions). Students take random subsets of this pool, so cover the whole lecture and don't repeat the same fact. Test understanding, not just recall. "answerIndex" is the 0-based index of the correct option. Vary which position holds the correct answer. "explanation" says why the answer is right in one or two sentences.
 
 "title": a short, clean title for the lecture.
 

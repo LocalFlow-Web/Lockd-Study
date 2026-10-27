@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { DEMO_MATERIAL } from "./demo";
-import type { CardStatus, StudyClass, StudyMaterial, StudySet } from "./types";
+import type { CardStatus, QuizQuestion, StudyClass, StudyMaterial, StudySet } from "./types";
 
 // Everything is saved in the browser for now. Once logins exist, this moves
 // to Supabase and the rest of the app stays the same.
@@ -41,7 +41,18 @@ type Store = State & {
   setCardStatus: (setId: string, index: number, status: CardStatus) => void;
   resetCards: (setId: string) => void;
   recordScore: (setId: string, score: number) => void;
+  addQuizQuestions: (setId: string, questions: QuizQuestion[]) => void;
 };
+
+// Sample sets saved before the sample quiz grew to 20 questions get the full pool.
+function upgrade(state: State): State {
+  return {
+    ...state,
+    sets: state.sets.map((x) =>
+      x.demo && x.quiz.length < DEMO_MATERIAL.quiz.length ? { ...x, quiz: DEMO_MATERIAL.quiz } : x,
+    ),
+  };
+}
 
 const Ctx = createContext<Store | null>(null);
 
@@ -57,7 +68,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       loaded = null;
     }
-    setState(loaded ?? seed());
+    setState(loaded ? upgrade(loaded) : seed());
     setReady(true);
   }, []);
 
@@ -127,9 +138,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const addQuizQuestions = useCallback((setId: string, questions: QuizQuestion[]) => {
+    setState((s) => ({
+      ...s,
+      sets: s.sets.map((x) => (x.id === setId ? { ...x, quiz: [...x.quiz, ...questions] } : x)),
+    }));
+  }, []);
+
   const value = useMemo<Store>(
-    () => ({ ...state, ready, addClass, renameClass, deleteClass, addSet, deleteSet, setCardStatus, resetCards, recordScore }),
-    [state, ready, addClass, renameClass, deleteClass, addSet, deleteSet, setCardStatus, resetCards, recordScore],
+    () => ({
+      ...state,
+      ready,
+      addClass,
+      renameClass,
+      deleteClass,
+      addSet,
+      deleteSet,
+      setCardStatus,
+      resetCards,
+      recordScore,
+      addQuizQuestions,
+    }),
+    [state, ready, addClass, renameClass, deleteClass, addSet, deleteSet, setCardStatus, resetCards, recordScore, addQuizQuestions],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

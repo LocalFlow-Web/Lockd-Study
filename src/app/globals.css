@@ -1522,3 +1522,50 @@ kbd {
     display: inline-grid;
   }
 }
+
+/* ---------- Quiz setup ---------- */
+
+.quiz-setup {
+  display: grid;
+  gap: 18px;
+  justify-items: start;
+  padding: 32px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.quiz-setup h2 {
+  font-size: 28px;
+  margin: 0;
+}
+
+.quiz-setup .page-sub {
+  margin-top: -8px;
+  max-width: 52ch;
+}
+
+.quiz-setup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+}
+
+.quiz-setup-row .select {
+  min-width: 84px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.quiz-setup-note {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin-top: -6px;
+}
+
+@media (max-width: 640px) {
+  .quiz-setup {
+    padding: 24px 20px;
+  }
+}

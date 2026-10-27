@@ -33,7 +33,7 @@ export default function SetPage() {
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "notes", label: "Notes" },
     { id: "cards", label: "Flashcards", count: set.flashcards.length },
-    { id: "quiz", label: "Practice quiz", count: set.quiz.length },
+    { id: "quiz", label: "Practice quiz" },
   ];
 
   return (
