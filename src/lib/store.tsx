@@ -12,7 +12,7 @@ import type { CardStatus, QuizQuestion, StudyClass, StudyMaterial, StudySet } fr
 //   saved to the user's account and sync across devices.
 // The rest of the app doesn't know or care which one is running.
 const STORAGE_KEY = "lockd:v1";
-const IMPORTED_KEY = "lockd:v1:imported";
+const SEEDED_KEY = "lockd:v1:seeded";
 
 export const CLASS_COLORS = ["#4C3FD1", "#1F8A5B", "#D14B7A", "#1C7FB8", "#C77A12", "#6A5A4A"];
 
@@ -40,9 +40,23 @@ function seed(): State {
 }
 
 // Sample sets saved before the sample quiz grew to 20 questions get the full pool.
+// Classes that ended up sharing a color get a free one.
 function upgrade(state: State): State {
+  const seen = new Set<string>();
+  const classes = state.classes.map((c) => {
+    const color = c.color.toLowerCase();
+    if (!seen.has(color)) {
+      seen.add(color);
+      return c;
+    }
+    const free = CLASS_COLORS.find((x) => !seen.has(x.toLowerCase()) && !state.classes.some((o) => o.color.toLowerCase() === x.toLowerCase()));
+    if (!free) return c;
+    seen.add(free.toLowerCase());
+    return { ...c, color: free };
+  });
   return {
     ...state,
+    classes,
     sets: state.sets.map((x) =>
       x.demo && x.quiz.length < DEMO_MATERIAL.quiz.length ? { ...x, quiz: DEMO_MATERIAL.quiz } : x,
     ),
@@ -126,27 +140,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const remote: State = upgrade({
+      const saved: State = {
         classes: classesRes.data as StudyClass[],
         sets: setsRes.data.map((r) => r.data as StudySet),
-      });
+      };
 
-      if (remote.classes.length || remote.sets.length) {
-        synced.current = remote;
-        setState(remote);
+      if (saved.classes.length || saved.sets.length) {
+        // Any fixes from upgrade() get written back by the save effect.
+        synced.current = saved;
+        setState(upgrade(saved));
       } else {
-        // New account: bring over anything made on this device before logins
-        // existed (once), otherwise start with the sample lecture.
-        let start = seed();
+        // Empty account. Brand-new accounts start with just the sample
+        // lecture; nothing from this browser or other accounts carries over.
+        // If someone deleted everything themselves, keep it empty.
+        const seededKey = `${SEEDED_KEY}:${auth.user.id}`;
+        let alreadySeeded = false;
         try {
-          const local = readLocal();
-          if (local && !localStorage.getItem(IMPORTED_KEY) && local.sets.length) start = local;
-          localStorage.setItem(IMPORTED_KEY, "1");
+          alreadySeeded = Boolean(localStorage.getItem(seededKey));
+          localStorage.setItem(seededKey, "1");
         } catch {
-          // Storage blocked: fall back to the sample.
+          // Storage blocked: treat as new.
         }
         synced.current = { classes: [], sets: [] };
-        setState(start); // the save effect below uploads it
+        setState(alreadySeeded ? { classes: [], sets: [] } : seed()); // the save effect uploads the sample
       }
       setReady(true);
     })();
@@ -224,7 +240,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const addClass = useCallback((name: string) => {
     const created: StudyClass = { id: uid(), name: name.trim() || "New class", color: CLASS_COLORS[0] };
     setState((s) => {
-      created.color = CLASS_COLORS[s.classes.length % CLASS_COLORS.length];
+      // First color no other class is using; cycle once all are taken.
+      const used = new Set(s.classes.map((c) => c.color.toLowerCase()));
+      created.color =
+        CLASS_COLORS.find((c) => !used.has(c.toLowerCase())) ?? CLASS_COLORS[s.classes.length % CLASS_COLORS.length];
       return { ...s, classes: [...s.classes, created] };
     });
     return created;
