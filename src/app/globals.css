@@ -1693,3 +1693,78 @@ kbd {
   color: var(--ink-2);
   padding: 0 4px;
 }
+
+/* Password field */
+.field > label {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.password-wrap {
+  position: relative;
+}
+
+.password-wrap .input {
+  width: 100%;
+  padding-right: 64px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.rules {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.rules li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rules li[data-ok="true"] {
+  color: var(--good);
+}
+
+.rule-mark {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule);
+  font-size: 10px;
+  font-weight: 800;
+  flex: none;
+}
+
+.rules li[data-ok="true"] .rule-mark {
+  border-color: var(--good);
+  background: var(--good);
+  color: #fff;
+}

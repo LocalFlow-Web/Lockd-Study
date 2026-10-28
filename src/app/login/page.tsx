@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Wordmark } from "@/components/bits";
+import { PASSWORD_RULES, passwordIsStrong } from "@/lib/password";
 import { authEnabled } from "@/lib/supabase/config";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -20,6 +21,8 @@ function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const strong = passwordIsStrong(password);
 
   if (!authEnabled) {
     return (
@@ -33,8 +36,8 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     setNotice(null);
-    if (mode === "signup" && password.length < 8) {
-      setError("Use a password with at least 8 characters.");
+    if (mode === "signup" && !strong) {
+      setError("Your password needs everything on the checklist.");
       return;
     }
     setBusy(true);
@@ -50,7 +53,9 @@ function LoginForm() {
       setError(
         msg.includes("invalid login")
           ? "That email and password don't match. Check them, or create an account."
-          : msg.includes("already registered")
+          : error.code === "weak_password" || msg.includes("password should")
+            ? "That password isn't strong enough. Make sure it ticks every box on the checklist."
+            : msg.includes("already registered")
             ? "There's already an account with that email. Sign in instead."
             : msg.includes("rate limit")
               ? "Too many tries. Wait a minute and try again."
@@ -88,19 +93,45 @@ function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
         />
       </label>
-      <label className="field">
-        <span>Password</span>
-        <input
-          className="input"
-          type="password"
-          autoComplete={mode === "signin" ? "current-password" : "new-password"}
-          required
-          minLength={mode === "signup" ? 8 : undefined}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {mode === "signup" && <small>At least 8 characters</small>}
-      </label>
+      <div className="field">
+        <label htmlFor="password">Password</label>
+        <div className="password-wrap">
+          <input
+            id="password"
+            className="input"
+            type={showPassword ? "text" : "password"}
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-describedby={mode === "signup" ? "password-rules" : undefined}
+          />
+          <button
+            type="button"
+            className="password-toggle"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-pressed={showPassword}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
+        {mode === "signup" && (
+          <ul className="rules" id="password-rules" aria-label="Password requirements">
+            {PASSWORD_RULES.map((r) => {
+              const ok = r.test(password);
+              return (
+                <li key={r.id} data-ok={ok}>
+                  <span className="rule-mark" aria-hidden="true">
+                    {ok ? "✓" : ""}
+                  </span>
+                  {r.label}
+                  <span className="visually-hidden">{ok ? " (done)" : " (missing)"}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       {error && (
         <p className="error" role="alert">
@@ -113,7 +144,7 @@ function LoginForm() {
         </p>
       )}
 
-      <button className="btn btn-primary" type="submit" disabled={busy}>
+      <button className="btn btn-primary" type="submit" disabled={busy || (mode === "signup" && !strong)}>
         {busy ? "One sec…" : mode === "signin" ? "Sign in" : "Create account"}
       </button>
 
