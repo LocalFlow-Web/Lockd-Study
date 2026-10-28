@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import type { StudyMaterial } from "@/lib/types";
 import { Icon } from "./bits";
 
-const STEPS = ["Reading the PDF", "Writing your notes", "Making flashcards", "Building the practice quiz"];
+const STEPS = ["Reading your lecture", "Writing your notes", "Making flashcards", "Building the practice quiz"];
 
 export function Uploader({ classId: fixedClassId }: { classId?: string }) {
   const { classes, addClass, addSet } = useStore();
@@ -34,8 +34,13 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
   async function handle(file: File | undefined) {
     if (!file) return;
     setError(null);
-    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
-      setError("That file isn't a PDF. Export it as a PDF and try again.");
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".pdf") && !lower.endsWith(".pptx") && file.type !== "application/pdf") {
+      setError(
+        lower.endsWith(".ppt") || lower.endsWith(".key")
+          ? "Lockd can't read that file type. Open it and save it as .pptx or PDF, then try again."
+          : "Lockd reads PDFs and PowerPoint (.pptx) files. Export it as one of those and try again.",
+      );
       return;
     }
 
@@ -95,15 +100,15 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           onChange={(e) => {
             handle(e.target.files?.[0]);
             e.target.value = "";
           }}
         />
         <Icon.Doc size={32} />
-        <h2>Drop a lecture PDF here</h2>
-        <p>Slides, readings, or study guides. You&apos;ll get notes, flashcards, and a quiz.</p>
+        <h2>Drop a lecture here</h2>
+        <p>PDF or PowerPoint (.pptx). You&apos;ll get notes, flashcards, and a quiz.</p>
         <div className="drop-row" onClick={(e) => e.preventDefault()}>
           {!fixedClassId && classes.length > 0 && (
             <select
@@ -121,7 +126,7 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
           )}
           <button type="button" className="btn btn-primary" onClick={() => inputRef.current?.click()}>
             <Icon.Upload size={16} />
-            Choose a PDF
+            Choose a file
           </button>
         </div>
       </label>

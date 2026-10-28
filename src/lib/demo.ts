@@ -225,7 +225,7 @@ export const DEMO_MATERIAL: Omit<StudyMaterial, "title" | "demo"> = {
 };
 
 export function titleFromFileName(name: string): string {
-  const base = name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const base = name.replace(/\.(pdf|pptx)$/i, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   if (!base) return "Untitled lecture";
   return base.charAt(0).toUpperCase() + base.slice(1);
 }

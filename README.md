@@ -1,6 +1,8 @@
 # Lockd Study
 
-Upload a lecture PDF and get clean notes, flashcards, and a practice quiz, organized by class.
+Upload a lecture (PDF or PowerPoint .pptx) and get clean notes, flashcards, and a practice quiz, organized by class.
+
+PowerPoint files are read as text: every slide plus the speaker notes. Slides that are only pictures or diagrams come through empty, so for diagram-heavy decks, export to PDF and upload that.
 
 ## Run it on your computer
 
@@ -34,7 +36,9 @@ To use real AI output:
 | --- | --- |
 | `src/app/page.tsx` | Landing page |
 | `src/app/app/` | The app: home/upload, class pages, study set pages |
-| `src/app/api/generate/route.ts` | Sends the PDF to Claude and returns notes, cards, and quiz. Returns sample data when there's no key. |
+| `src/app/api/generate/route.ts` | Sends the PDF or slide text to Claude and returns notes, cards, and quiz. Returns sample data when there's no key. |
+| `src/app/api/more-questions/route.ts` | Writes extra quiz questions from a set's notes when someone asks for a longer quiz |
+| `src/lib/pptx.ts` | Reads slide text and speaker notes out of .pptx files |
 | `src/components/` | Notes view, flashcards, quiz, upload box, sidebar |
 | `src/lib/store.tsx` | Saves classes and study sets in the browser (localStorage) |
 | `src/lib/demo.ts` | The sample study set |

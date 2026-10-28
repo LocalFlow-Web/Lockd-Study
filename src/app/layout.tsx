@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Lockd Study",
-  description: "Upload a lecture PDF and get clean notes, flashcards, and a practice quiz.",
+  description: "Upload lecture slides or a PDF and get clean notes, flashcards, and a practice quiz.",
 };
 
 export const viewport: Viewport = {

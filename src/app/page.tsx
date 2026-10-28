@@ -15,12 +15,12 @@ export default function Landing() {
         <div>
           <h1>Turn any lecture into a study session.</h1>
           <p className="hero-lede">
-            Upload slides or a reading. Lockd writes clean notes, builds flashcards, and quizzes you on what&apos;s
+            Upload your PowerPoint slides or a PDF. Lockd writes clean notes, builds flashcards, and quizzes you on what&apos;s
             likely to be on the exam.
           </p>
           <div className="hero-actions">
             <Link href="/app" className="btn btn-primary">
-              Upload a PDF
+              Upload a lecture
             </Link>
             <Link href="/app/set/sample" className="btn btn-quiet">
               See a sample lecture
@@ -97,8 +97,8 @@ export default function Landing() {
         <h2>How it works</h2>
         <ol className="steps">
           <li>
-            <h3>Upload the PDF</h3>
-            <p>Lecture slides, a reading, a study guide. Pick the class it belongs to.</p>
+            <h3>Upload the lecture</h3>
+            <p>PowerPoint slides or a PDF of a reading or study guide. Pick the class it belongs to.</p>
           </li>
           <li>
             <h3>Get your study set</h3>
@@ -114,7 +114,7 @@ export default function Landing() {
       <section className="closing">
         <h2>Got a lecture you need to learn tonight?</h2>
         <Link href="/app" className="btn btn-primary">
-          Upload a PDF
+          Upload a lecture
         </Link>
       </section>
 

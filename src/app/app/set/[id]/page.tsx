@@ -23,7 +23,7 @@ export default function SetPage() {
     return (
       <div className="page">
         <p className="empty">
-          This study set isn&apos;t on this device. <Link href="/app">Upload a PDF</Link> to make a new one.
+          This study set isn&apos;t on this device. <Link href="/app">Upload a lecture</Link> to make a new one.
         </p>
       </div>
     );

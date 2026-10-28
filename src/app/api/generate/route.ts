@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { DEMO_MATERIAL, titleFromFileName } from "@/lib/demo";
+import { extractPptx, slidesToText } from "@/lib/pptx";
 import type { StudyMaterial } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -75,11 +76,11 @@ const SCHEMA = {
   },
 };
 
-const INSTRUCTIONS = `You turn a student's lecture PDF into study material for a college exam.
+const INSTRUCTIONS = `You turn a student's lecture (a PDF or the text of PowerPoint slides) into study material for a college exam.
 
 Notes:
 - "summary": 2–3 plain sentences on what the lecture covers and why it matters.
-- "sections": follow the lecture's own order. Short, scannable bullet points in plain language, not copied slide text. Wrap the most important term in a bullet in **double asterisks** (at most one or two per bullet). Add "examTip" only when something is clearly exam-worthy (emphasized, repeated, or a common trick). Set "page" to the PDF page the section mainly comes from.
+- "sections": follow the lecture's own order. Short, scannable bullet points in plain language, not copied slide text. Wrap the most important term in a bullet in **double asterisks** (at most one or two per bullet). Add "examTip" only when something is clearly exam-worthy (emphasized, repeated, or a common trick). Set "page" to the PDF page or slide number the section mainly comes from.
 - "keyTerms": the vocabulary a student must know, with one-sentence definitions.
 
 Flashcards: 10–25 cards. One fact per card. Fronts are questions, backs are short answers.
@@ -88,7 +89,7 @@ Quiz: 20 multiple-choice questions with exactly 4 options each (fewer only if th
 
 "title": a short, clean title for the lecture.
 
-Only use what's in the document. If something is unclear in the source, leave it out rather than guessing.`;
+Only use what's in the document. If something is unclear in the source, leave it out rather than guessing. For PowerPoint text, speaker notes often hold the professor's explanations: use them.`;
 
 export async function POST(req: Request) {
   let form: FormData;
@@ -100,14 +101,41 @@ export async function POST(req: Request) {
 
   const file = form.get("file");
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Upload a PDF file." }, { status: 400 });
+    return NextResponse.json({ error: "Upload a PDF or PowerPoint file." }, { status: 400 });
   }
-  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-    return NextResponse.json({ error: "That file isn't a PDF. Export it as a PDF and try again." }, { status: 400 });
+
+  const lower = file.name.toLowerCase();
+  const kind = lower.endsWith(".pdf") || file.type === "application/pdf" ? "pdf" : lower.endsWith(".pptx") ? "pptx" : null;
+  if (!kind) {
+    const hint = lower.endsWith(".ppt") || lower.endsWith(".key")
+      ? "Open it and save it as .pptx or PDF, then try again."
+      : "Upload a PDF or a PowerPoint (.pptx) file.";
+    return NextResponse.json({ error: `Lockd can't read that file type. ${hint}` }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
     const mb = Math.floor(MAX_BYTES / 1024 / 1024);
-    return NextResponse.json({ error: `That PDF is over ${mb} MB. Try splitting it into smaller parts.` }, { status: 413 });
+    return NextResponse.json({ error: `That file is over ${mb} MB. Try splitting it into smaller parts.` }, { status: 413 });
+  }
+
+  const bytes = await file.arrayBuffer();
+
+  // PowerPoint: pull the slide text and speaker notes out of the file.
+  let slideText = "";
+  if (kind === "pptx") {
+    try {
+      slideText = slidesToText(await extractPptx(bytes));
+    } catch {
+      return NextResponse.json(
+        { error: "Couldn't open that PowerPoint. Save it again as .pptx, or export it as a PDF." },
+        { status: 400 },
+      );
+    }
+    if (slideText.replace(/--- Slide \d+ ---|\(no text on this slide[^)]*\)/g, "").trim().length < 40) {
+      return NextResponse.json(
+        { error: "Those slides are mostly pictures, so there's no text to read. Export the deck as a PDF and upload that instead." },
+        { status: 422 },
+      );
+    }
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -119,8 +147,11 @@ export async function POST(req: Request) {
     return NextResponse.json(material);
   }
 
-  const data = Buffer.from(await file.arrayBuffer()).toString("base64");
   const client = new Anthropic({ apiKey });
+  const source =
+    kind === "pdf"
+      ? ({ type: "base64", media_type: "application/pdf", data: Buffer.from(bytes).toString("base64") } as const)
+      : ({ type: "text", media_type: "text/plain", data: slideText } as const);
 
   try {
     const message = await client.messages.create({
@@ -131,7 +162,7 @@ export async function POST(req: Request) {
         {
           role: "user",
           content: [
-            { type: "document", source: { type: "base64", media_type: "application/pdf", data }, title: file.name },
+            { type: "document", source, title: file.name },
             { type: "text", text: INSTRUCTIONS },
           ],
         },
@@ -158,7 +189,7 @@ export async function POST(req: Request) {
         ? "The API key was rejected. Check ANTHROPIC_API_KEY in .env.local."
         : status === 429
           ? "Too many requests right now. Wait a minute and try again."
-          : "Couldn't read that PDF. Try again, or try a different file.";
+          : "Couldn't read that file. Try again, or try a different one.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

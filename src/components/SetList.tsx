@@ -9,7 +9,7 @@ export function SetList({ sets, showClass = true }: { sets: StudySet[]; showClas
   const { classes } = useStore();
 
   if (!sets.length) {
-    return <p className="empty">No study sets yet. Upload a lecture PDF above to make your first one.</p>;
+    return <p className="empty">No study sets yet. Upload a lecture above to make your first one.</p>;
   }
 
   return (

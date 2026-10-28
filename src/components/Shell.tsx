@@ -44,7 +44,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <nav className="side-group">
           <Link href="/app" className="side-link" aria-current={pathname === "/app" ? "page" : undefined}>
             <Icon.Upload size={16} />
-            Upload a PDF
+            Upload a lecture
           </Link>
         </nav>
 
