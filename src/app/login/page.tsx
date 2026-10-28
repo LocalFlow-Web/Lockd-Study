@@ -19,6 +19,7 @@ const RESET_EMAIL_HAS_CODE = process.env.NEXT_PUBLIC_RESET_EMAIL_HAS_CODE === "t
 
 // Turns Supabase auth errors into plain, actionable messages.
 function friendly(error: { message: string; code?: string }): string {
+  console.warn("[auth]", error.code ?? "", error.message);
   const msg = error.message.toLowerCase();
   const code = error.code ?? "";
   if (msg.includes("invalid login")) return "That email and password don't match. Check them, or create an account.";
@@ -33,6 +34,8 @@ function friendly(error: { message: string; code?: string }): string {
     return "Lockd can't send email to that address yet. Email sending is still being set up.";
   const wait = /after (\d+) seconds?/.exec(error.message);
   if (wait) return `Wait ${wait[1]} seconds before asking for another code.`;
+  if (code === "over_email_send_rate_limit" || msg.includes("email rate limit"))
+    return "Lockd has sent too many emails this hour. Try again in an hour.";
   if (msg.includes("rate limit")) return "Too many tries. Wait a minute and try again.";
   return error.message;
 }
