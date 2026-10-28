@@ -789,7 +789,7 @@ mark,
   font-size: 15px;
 }
 
-.drop input {
+.drop input[type="file"] {
   position: absolute;
   width: 1px;
   height: 1px;

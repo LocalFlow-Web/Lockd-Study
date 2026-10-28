@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { DEMO_MATERIAL } from "./demo";
 import { supabaseBrowser } from "./supabase/client";
 import { authEnabled } from "./supabase/config";
 import type { CardStatus, QuizQuestion, StudyClass, StudyMaterial, StudySet } from "./types";
@@ -12,7 +11,6 @@ import type { CardStatus, QuizQuestion, StudyClass, StudyMaterial, StudySet } fr
 //   saved to the user's account and sync across devices.
 // The rest of the app doesn't know or care which one is running.
 const STORAGE_KEY = "lockd:v1";
-const SEEDED_KEY = "lockd:v1:seeded";
 
 export const CLASS_COLORS = ["#4C3FD1", "#1F8A5B", "#D14B7A", "#1C7FB8", "#C77A12", "#6A5A4A"];
 
@@ -24,24 +22,22 @@ function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
-function seed(): State {
-  const bio: StudyClass = { id: "bio101", name: "Bio 101", color: CLASS_COLORS[1] };
-  const set: StudySet = {
-    ...DEMO_MATERIAL,
-    title: "Cellular respiration",
-    demo: true,
-    id: "sample",
-    classId: bio.id,
-    fileName: "Lecture 9 - Cellular Respiration.pdf",
-    createdAt: Date.now() - 1000 * 60 * 60 * 26,
-    cardStatus: DEMO_MATERIAL.flashcards.map(() => "new"),
-  };
-  return { classes: [bio], sets: [set] };
-}
+const EMPTY: State = { classes: [], sets: [] };
 
-// Sample sets saved before the sample quiz grew to 20 questions get the full pool.
-// Classes that ended up sharing a color get a free one.
-function upgrade(state: State): State {
+// The sample lecture (cellular respiration) that older accounts were given.
+const SAMPLE_SET_ID = "sample";
+const SAMPLE_CLASS_ID = "bio101";
+
+// Cleans up older saved data:
+// - removes the sample lecture everyone used to start with, and its "Bio 101"
+//   class if nothing else is in it (real study sets are never touched)
+// - classes that ended up sharing a color get a free one
+function upgrade(saved: State): State {
+  const sets = saved.sets.filter((x) => !(x.id === SAMPLE_SET_ID && x.demo));
+  const state: State = {
+    sets,
+    classes: saved.classes.filter((c) => c.id !== SAMPLE_CLASS_ID || sets.some((x) => x.classId === c.id)),
+  };
   const seen = new Set<string>();
   const classes = state.classes.map((c) => {
     const color = c.color.toLowerCase();
@@ -54,13 +50,7 @@ function upgrade(state: State): State {
     seen.add(free.toLowerCase());
     return { ...c, color: free };
   });
-  return {
-    ...state,
-    classes,
-    sets: state.sets.map((x) =>
-      x.demo && x.quiz.length < DEMO_MATERIAL.quiz.length ? { ...x, quiz: DEMO_MATERIAL.quiz } : x,
-    ),
-  };
+  return { ...state, classes };
 }
 
 function readLocal(): State | null {
@@ -113,7 +103,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // ---- Load ----
   useEffect(() => {
     if (!authEnabled) {
-      setState(readLocal() ?? seed());
+      setState(readLocal() ?? EMPTY);
       setReady(true);
       return;
     }
@@ -150,19 +140,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         synced.current = saved;
         setState(upgrade(saved));
       } else {
-        // Empty account. Brand-new accounts start with just the sample
-        // lecture; nothing from this browser or other accounts carries over.
-        // If someone deleted everything themselves, keep it empty.
-        const seededKey = `${SEEDED_KEY}:${auth.user.id}`;
-        let alreadySeeded = false;
-        try {
-          alreadySeeded = Boolean(localStorage.getItem(seededKey));
-          localStorage.setItem(seededKey, "1");
-        } catch {
-          // Storage blocked: treat as new.
-        }
-        synced.current = { classes: [], sets: [] };
-        setState(alreadySeeded ? { classes: [], sets: [] } : seed()); // the save effect uploads the sample
+        // Empty account: everyone starts with a clean slate.
+        synced.current = EMPTY;
+        setState(EMPTY);
       }
       setReady(true);
     })();

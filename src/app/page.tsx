@@ -23,9 +23,6 @@ export default function Landing() {
             <Link href="/app" className="btn btn-primary">
               Upload a lecture
             </Link>
-            <Link href="/app/set/sample" className="btn btn-quiet">
-              See a sample lecture
-            </Link>
           </div>
           <p className="hero-note">Everything stays organized by class, all semester.</p>
         </div>

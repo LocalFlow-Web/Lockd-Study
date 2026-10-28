@@ -63,6 +63,7 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [newClassName, setNewClassName] = useState("");
 
   useEffect(() => {
     if (fixedClassId) setClassId(fixedClassId);
@@ -91,7 +92,7 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
     }
 
     let target = classId;
-    if (!target) target = addClass("My class").id;
+    if (!target) target = addClass(newClassName.trim() || "My class").id;
 
     setBusy(file.name);
     try {
@@ -166,6 +167,16 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
         <h2>Drop a lecture here</h2>
         <p>PDF or PowerPoint (.pptx). You&apos;ll get notes, flashcards, and a quiz.</p>
         <div className="drop-row" onClick={(e) => e.preventDefault()}>
+          {!fixedClassId && classes.length === 0 && (
+            <input
+              className="input"
+              placeholder="Class name, e.g. Bio 101"
+              value={newClassName}
+              onChange={(e) => setNewClassName(e.target.value)}
+              aria-label="Class this lecture belongs to"
+              style={{ width: 220 }}
+            />
+          )}
           {!fixedClassId && classes.length > 0 && (
             <select
               className="select"
