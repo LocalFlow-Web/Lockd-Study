@@ -8,6 +8,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { passwordIsStrong } from "@/lib/password";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { authEnabled } from "@/lib/supabase/config";
+import { sendResetEmail } from "@/lib/supabase/recovery";
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -42,7 +43,7 @@ function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(
     params.get("error") === "link"
-      ? "That reset link didn't work. Links expire after an hour, only work once, and need to be opened in the browser you asked from. Send a new one below."
+      ? "That reset link didn't work. Links expire after an hour and only work once. Send a new one below."
       : null,
   );
   const [notice, setNotice] = useState<string | null>(null);
@@ -120,11 +121,8 @@ function LoginForm() {
     setError(null);
     setNotice(null);
     setBusy(true);
-    // The email's link comes back to /auth/callback, which signs them in and
-    // opens the set-a-new-password page.
-    const { error } = await supabaseBrowser().auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    });
+    // The email's link opens /reset-password and works on any device.
+    const { error } = await sendResetEmail(email.trim());
     setBusy(false);
     if (error) {
       setError(friendly(error));
@@ -133,7 +131,7 @@ function LoginForm() {
     setCodeSent(true);
     setCooldown(60);
     setNotice(
-      `If there's an account for ${email.trim()}, we just sent it a reset email. Open the link in it from this browser to pick a new password. Check spam if it's not there in a minute.`,
+      `If there's an account for ${email.trim()}, we just sent it a reset email. Click the link in it to pick a new password. Check spam if it's not there in a minute.`,
     );
   }
 

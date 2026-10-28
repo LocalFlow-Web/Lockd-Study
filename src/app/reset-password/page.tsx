@@ -7,6 +7,7 @@ import { Wordmark } from "@/components/bits";
 import { PasswordInput } from "@/components/PasswordInput";
 import { passwordIsStrong } from "@/lib/password";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { takeSessionFromUrl } from "@/lib/supabase/recovery";
 
 // The reset link in the email signs the person in and sends them here to
 // pick a new password.
@@ -20,12 +21,25 @@ export default function ResetPasswordPage() {
   const strong = passwordIsStrong(password);
 
   useEffect(() => {
-    supabaseBrowser()
-      .auth.getUser()
-      .then(({ data }) => {
-        setEmail(data.user?.email ?? null);
-        setState(data.user ? "ready" : "no-session");
-      });
+    (async () => {
+      // Read the link before anything else touches the address bar.
+      const fromLink = takeSessionFromUrl();
+      const supabase = supabaseBrowser();
+      if (fromLink?.kind === "error") {
+        setState("no-session");
+        return;
+      }
+      if (fromLink?.kind === "session") {
+        const { error } = await supabase.auth.setSession(fromLink);
+        if (error) {
+          setState("no-session");
+          return;
+        }
+      }
+      const { data } = await supabase.auth.getUser();
+      setEmail(data.user?.email ?? null);
+      setState(data.user ? "ready" : "no-session");
+    })();
   }, []);
 
   async function save(e: React.FormEvent) {
@@ -62,8 +76,7 @@ export default function ResetPasswordPage() {
         <div className="auth-card">
           <h1>This link didn&apos;t work</h1>
           <p className="page-sub">
-            Reset links expire after an hour and only work once. They also need to be opened in the same browser you
-            asked for the reset from.
+            Reset links expire after an hour and only work once. Send yourself a new one and use the newest email.
           </p>
           <Link href="/login?mode=forgot" className="btn btn-primary">
             Send a new reset email

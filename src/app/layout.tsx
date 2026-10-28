@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/onest";
+import { RecoveryForwarder } from "@/components/RecoveryForwarder";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <RecoveryForwarder />
+        {children}
+      </body>
     </html>
   );
 }

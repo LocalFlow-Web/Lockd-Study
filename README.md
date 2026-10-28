@@ -44,7 +44,7 @@ To turn on accounts:
 4. From **Project Settings → API Keys**, add the Project URL and the **publishable** key to `.env.local` (see `.env.example`). Never put the secret key in the app.
 5. Restart `npm run dev`.
 
-6. For "Forgot your password?": in **Authentication → URL Configuration → Redirect URLs**, add `http://localhost:3000/**` (and later your live site, like `https://your-app.vercel.app/**`). The reset email's link comes back to `/auth/callback`, which signs the person in and opens `/reset-password`. With Supabase's default email the link only works in the browser the reset was requested from. Once custom SMTP is set up, you can also paste `supabase/reset-password-email.html` into **Authentication → Emails → Reset Password**: it adds a 6-digit code that works on any device.
+6. For "Forgot your password?": in **Authentication → URL Configuration → Redirect URLs**, add `http://localhost:3000/**` (and later your live site, like `https://your-app.vercel.app/**`). The reset email's link opens `/reset-password`, which signs the person in and lets them pick a new password. It works in any browser or device. Once custom SMTP is set up, you can also paste `supabase/reset-password-email.html` into **Authentication → Emails → Reset Password** to add a 6-digit code.
 
 **Email delivery:** Supabase's built-in email only delivers to members of your Supabase team, about 2 emails per hour. Before other people use Lockd, connect a real email provider (Resend, Postmark, Brevo, etc.) in **Authentication → Emails → SMTP Settings**, or password reset codes won't reach them.
 
@@ -65,7 +65,8 @@ Then `/app` requires signing in, classes and study sets save to the account (and
 | `src/lib/supabase/` | Login clients, upload limit checks |
 | `src/middleware.ts` | Keeps sessions fresh and sends signed-out visitors to /login |
 | `src/app/login/page.tsx` | Sign in, create account, and request a password reset |
-| `src/app/auth/callback/route.ts` | Where links in Supabase emails land; signs the person in |
+| `src/app/auth/callback/route.ts` | Handles code-style links from Supabase emails (email confirmation later) |
+| `src/lib/supabase/recovery.ts` | Sends reset emails with links that work on any device |
 | `src/app/reset-password/page.tsx` | Set a new password after clicking the reset link |
 | `supabase/reset-password-email.html` | Email template for password reset codes |
 | `supabase/schema.sql` | Database tables and security rules |
