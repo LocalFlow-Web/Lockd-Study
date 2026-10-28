@@ -40,11 +40,16 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    params.get("error") === "link"
+      ? "That reset link didn't work. Links expire after an hour, only work once, and need to be opened in the browser you asked from. Send a new one below."
+      : null,
+  );
   const [notice, setNotice] = useState<string | null>(null);
 
   // Forgot password: first send a code, then enter it with a new password.
   const [codeSent, setCodeSent] = useState(false);
+  const [useCode, setUseCode] = useState(false);
   const [code, setCode] = useState("");
   const [verified, setVerified] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -71,6 +76,7 @@ function LoginForm() {
     setNotice(null);
     setPassword("");
     setCodeSent(false);
+    setUseCode(false);
     setCode("");
     setVerified(false);
   }
@@ -114,7 +120,11 @@ function LoginForm() {
     setError(null);
     setNotice(null);
     setBusy(true);
-    const { error } = await supabaseBrowser().auth.resetPasswordForEmail(email.trim());
+    // The email's link comes back to /auth/callback, which signs them in and
+    // opens the set-a-new-password page.
+    const { error } = await supabaseBrowser().auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+    });
     setBusy(false);
     if (error) {
       setError(friendly(error));
@@ -123,7 +133,7 @@ function LoginForm() {
     setCodeSent(true);
     setCooldown(60);
     setNotice(
-      `If there's an account for ${email.trim()}, we just emailed it a code. Check your spam folder if it's not there in a minute.`,
+      `If there's an account for ${email.trim()}, we just sent it a reset email. Open the link in it from this browser to pick a new password. Check spam if it's not there in a minute.`,
     );
   }
 
@@ -159,12 +169,14 @@ function LoginForm() {
 
   if (mode === "forgot") {
     return (
-      <form className="auth-card" onSubmit={codeSent ? resetPassword : sendCode}>
-        <h1>Reset your password</h1>
+      <form className="auth-card" onSubmit={useCode ? resetPassword : sendCode}>
+        <h1>{useCode ? "Enter your code" : codeSent ? "Check your email" : "Reset your password"}</h1>
         <p className="page-sub">
-          {codeSent
+          {useCode
             ? "Enter the code from the email and pick a new password."
-            : "Enter the email you signed up with and we'll send you a code to reset your password."}
+            : codeSent
+              ? "Click the reset link in the email. You can close this page."
+              : "Enter the email you signed up with and we'll send you a link to reset your password."}
         </p>
 
         <label className="field">
@@ -180,7 +192,7 @@ function LoginForm() {
           />
         </label>
 
-        {codeSent && (
+        {useCode && (
           <>
             {!verified && (
               <label className="field">
@@ -219,23 +231,31 @@ function LoginForm() {
           </p>
         )}
 
-        {codeSent ? (
+        {useCode ? (
           <button className="btn btn-primary" type="submit" disabled={busy || !strong || (!verified && code.length < 6)}>
             {busy ? "One sec…" : "Reset password"}
           </button>
-        ) : (
+        ) : !codeSent ? (
           <button className="btn btn-primary" type="submit" disabled={busy || !email}>
-            {busy ? "Sending…" : "Send code"}
+            {busy ? "Sending…" : "Send reset email"}
           </button>
-        )}
+        ) : null}
 
         <p className="auth-switch">
           {codeSent && !verified && (
             <>
               <button type="button" onClick={() => sendCode()} disabled={busy || cooldown > 0}>
-                {cooldown > 0 ? `Send a new code in ${cooldown}s` : "Send a new code"}
+                {cooldown > 0 ? `Send another email in ${cooldown}s` : "Send another email"}
               </button>
               <br />
+              {!useCode && (
+                <>
+                  <button type="button" onClick={() => setUseCode(true)}>
+                    Got a 6-digit code instead?
+                  </button>
+                  <br />
+                </>
+              )}
             </>
           )}
           <button type="button" onClick={() => switchTo("signin")}>
