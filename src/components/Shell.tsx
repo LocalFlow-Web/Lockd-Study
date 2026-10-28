@@ -7,7 +7,7 @@ import { useStore } from "@/lib/store";
 import { Icon, Wordmark } from "./bits";
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { classes, sets, addClass } = useStore();
+  const { classes, sets, addClass, cloud, email, usage, signOut, syncError } = useStore();
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -106,7 +106,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
           )}
         </nav>
 
-        <p className="sidebar-foot">Saved on this device</p>
+        {cloud ? (
+          <div className="account sidebar-foot">
+            {email && <span className="account-email">{email}</span>}
+            {usage && usage.limit !== null && (
+              <div className="usage" data-full={usage.used >= usage.limit}>
+                <span>
+                  {Math.min(usage.used, usage.limit)} of {usage.limit} free uploads used today
+                </span>
+                <span className="bar">
+                  <span style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} />
+                </span>
+              </div>
+            )}
+            {usage?.plan === "pro" && <span className="usage">Unlimited uploads</span>}
+            <button className="btn btn-quiet btn-small" onClick={signOut}>
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <p className="sidebar-foot">Saved on this device</p>
+        )}
       </aside>
 
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
@@ -118,7 +138,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </button>
           <Wordmark href="/app" />
         </div>
-        <main className="main">{children}</main>
+        <main className="main">
+          {syncError && (
+            <p className="error page" role="alert" style={{ marginBottom: 20 }}>
+              {syncError}
+            </p>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

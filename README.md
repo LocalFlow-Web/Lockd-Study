@@ -32,6 +32,20 @@ To use real AI output:
 
 `.env.local` is ignored by git, so the key never ends up on GitHub.
 
+## Logins, accounts, and the daily limit (Supabase)
+
+Without Supabase settings the app runs in **local mode**: no login, everything saved in the browser, no limits.
+
+To turn on accounts:
+
+1. Create a free project at https://supabase.com.
+2. In **Authentication → Sign In / Providers → Email**, turn off "Confirm email" (Supabase's built-in email only sends a few per hour; turn it back on once a real email service is set up).
+3. Open **SQL Editor → New query**, paste all of `supabase/schema.sql`, and run it. On a Mac: `cat supabase/schema.sql | pbcopy` copies it.
+4. From **Project Settings → API Keys**, add the Project URL and the **publishable** key to `.env.local` (see `.env.example`). Never put the secret key in the app.
+5. Restart `npm run dev`.
+
+Then `/app` requires signing in, classes and study sets save to the account (and sync across devices), and each free account gets 3 uploads per rolling 24 hours (`DAILY_UPLOAD_LIMIT`). A user with `plan = 'pro'` in the `profiles` table has no limit; that's where the paid tier will plug in. Uploads are tracked in the `uploads` table with model and token counts, so you can see cost per person.
+
 ## Where things live
 
 | Path | What it is |
@@ -43,7 +57,11 @@ To use real AI output:
 | `src/lib/pptx.ts` | Reads slide text and speaker notes out of .pptx files |
 | `src/lib/extract-client.ts` | Pulls text out of PowerPoints and big PDFs in the browser so large files upload fast |
 | `src/components/` | Notes view, flashcards, quiz, upload box, sidebar |
-| `src/lib/store.tsx` | Saves classes and study sets in the browser (localStorage) |
+| `src/lib/store.tsx` | Saves classes and study sets: to the account when signed in, otherwise in the browser |
+| `src/lib/supabase/` | Login clients, upload limit checks |
+| `src/middleware.ts` | Keeps sessions fresh and sends signed-out visitors to /login |
+| `src/app/login/page.tsx` | Sign in and create account |
+| `supabase/schema.sql` | Database tables and security rules |
 | `src/lib/demo.ts` | The sample study set |
 | `src/app/globals.css` | All styles and design tokens |
 
@@ -51,5 +69,3 @@ To use real AI output:
 
 - Deploy on Vercel: import this repo, add `ANTHROPIC_API_KEY` in the project's environment variables.
 - Vercel caps whole-file uploads at 4.5 MB per request. PowerPoints and PDFs over 20 MB already avoid this (text only), but PDFs between 4.5 and 20 MB will need to upload to storage first (planned with Supabase), or be sent as text.
-- Add logins and per-person upload limits so usage stays capped.
-- Everything is currently saved in each person's browser, so it won't sync between devices yet.

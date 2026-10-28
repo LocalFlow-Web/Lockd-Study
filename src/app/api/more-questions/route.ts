@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { DEMO_MATERIAL } from "@/lib/demo";
+import { requireUser } from "@/lib/supabase/limits";
 import type { Notes, QuizQuestion } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -35,6 +36,9 @@ const SCHEMA = {
 // for a longer quiz than the set's current pool. The original PDF isn't
 // needed: the notes already hold what the lecture covered.
 export async function POST(req: Request) {
+  const signed = await requireUser();
+  if (signed instanceof NextResponse) return signed;
+
   let body: { notes?: Notes; existing?: string[]; count?: number };
   try {
     body = await req.json();

@@ -1569,3 +1569,127 @@ kbd {
     padding: 24px 20px;
   }
 }
+
+/* ---------- Sign in ---------- */
+
+.auth {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 56px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  display: grid;
+  gap: 16px;
+  padding: 32px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.auth-card h1 {
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.auth-card .page-sub {
+  margin-top: -6px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.field .input {
+  height: 44px;
+  font-weight: 400;
+  font-size: 16px;
+}
+
+.field small {
+  font-weight: 400;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.auth-card .btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.auth-switch button {
+  border: none;
+  background: none;
+  padding: 0;
+  font-weight: 700;
+  color: var(--action);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-note {
+  max-width: 420px;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+/* Account box at the bottom of the sidebar */
+.account {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.account-email {
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-2);
+}
+
+.usage .bar {
+  width: 100%;
+}
+
+.usage .bar span {
+  background: var(--action);
+}
+
+.usage[data-full="true"] .bar span {
+  background: var(--bad);
+}
+
+.account .btn {
+  justify-self: start;
+}
+
+.upload-quota {
+  font-size: 14px;
+  color: var(--ink-2);
+  padding: 0 4px;
+}

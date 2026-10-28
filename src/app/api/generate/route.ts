@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { DEMO_MATERIAL, titleFromFileName } from "@/lib/demo";
 import { extractPptx, slidesToText } from "@/lib/pptx";
+import { claimUpload, finishUpload, requireUser } from "@/lib/supabase/limits";
 import type { StudyMaterial } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -164,6 +165,10 @@ async function readUpload(req: Request): Promise<{ fileName: string; source: Sou
 }
 
 export async function POST(req: Request) {
+  // Signed-in users only (when logins are set up).
+  const signed = await requireUser();
+  if (signed instanceof NextResponse) return signed;
+
   const upload = await readUpload(req);
   if (upload instanceof NextResponse) return upload;
   const { fileName, source } = upload;
@@ -175,6 +180,14 @@ export async function POST(req: Request) {
     await new Promise((r) => setTimeout(r, 1800));
     const material: StudyMaterial = { ...DEMO_MATERIAL, title: titleFromFileName(fileName), demo: true };
     return NextResponse.json(material);
+  }
+
+  // Count this upload against the daily limit before spending anything.
+  let uploadId: number | null = null;
+  if (signed) {
+    const claimed = await claimUpload(signed, fileName);
+    if (claimed instanceof NextResponse) return claimed;
+    uploadId = claimed;
   }
 
   const client = new Anthropic({ apiKey });
@@ -206,9 +219,20 @@ export async function POST(req: Request) {
       `[generate] ${message.model} | ${fileName} (${source.type === "text" ? "text" : "pdf"}): ${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens`,
     );
 
+    if (signed && uploadId !== null) {
+      await finishUpload(signed, uploadId, {
+        ok: true,
+        model: message.model,
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+      });
+    }
+
     return NextResponse.json({ ...parsed, demo: false } satisfies StudyMaterial);
   } catch (err) {
     console.error("[generate] failed", err);
+    // A failed upload doesn't count against the limit.
+    if (signed && uploadId !== null) await finishUpload(signed, uploadId, { ok: false });
     const status = err instanceof Anthropic.APIError ? err.status : undefined;
     const message =
       status === 401

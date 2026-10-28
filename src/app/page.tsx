@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Wordmark } from "@/components/bits";
+import { authEnabled } from "@/lib/supabase/config";
 
 export default function Landing() {
   return (
     <div className="landing">
       <nav className="landing-nav">
         <Wordmark />
-        <Link href="/app" className="btn btn-quiet btn-small">
-          Open Lockd
+        <Link href={authEnabled ? "/login" : "/app"} className="btn btn-quiet btn-small">
+          {authEnabled ? "Sign in" : "Open Lockd"}
         </Link>
       </nav>
 

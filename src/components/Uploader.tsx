@@ -11,6 +11,13 @@ const STEPS = ["Reading your lecture", "Writing your notes", "Making flashcards"
 
 class UploadError extends Error {}
 
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return sameDay ? time : `${time} tomorrow`;
+}
+
 // PowerPoints and big PDFs: read the text here and send only that, so file
 // size doesn't matter. Smaller PDFs go up whole so diagrams are seen too.
 async function send(file: File): Promise<Response> {
@@ -48,7 +55,7 @@ async function send(file: File): Promise<Response> {
 }
 
 export function Uploader({ classId: fixedClassId }: { classId?: string }) {
-  const { classes, addClass, addSet } = useStore();
+  const { classes, addClass, addSet, usage, refreshUsage } = useStore();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [classId, setClassId] = useState(fixedClassId ?? "");
@@ -71,7 +78,7 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
   }, [busy]);
 
   async function handle(file: File | undefined) {
-    if (!file) return;
+    if (!file || outOfUploads) return;
     setError(null);
     const lower = file.name.toLowerCase();
     if (!lower.endsWith(".pdf") && !lower.endsWith(".pptx") && file.type !== "application/pdf") {
@@ -89,15 +96,27 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
     setBusy(file.name);
     try {
       const res = await send(file);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Something went wrong. Try again.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        const when = data.resetAt ? ` You can upload again at ${formatTime(data.resetAt)}.` : "";
+        throw new Error((data.error || "Something went wrong. Try again.") + when);
+      }
       const set = addSet(target, file.name, data as StudyMaterial);
+      refreshUsage();
       router.push(`/app/set/${set.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
       setBusy(null);
+      refreshUsage();
     }
   }
+
+  const left = usage && usage.limit !== null ? Math.max(0, usage.limit - usage.used) : null;
+  const outOfUploads = left === 0;
 
   if (busy) {
     return (
@@ -152,7 +171,7 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
               className="select"
               value={classId}
               onChange={(e) => setClassId(e.target.value)}
-              aria-label="Class this PDF belongs to"
+              aria-label="Class this lecture belongs to"
             >
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -161,12 +180,24 @@ export function Uploader({ classId: fixedClassId }: { classId?: string }) {
               ))}
             </select>
           )}
-          <button type="button" className="btn btn-primary" onClick={() => inputRef.current?.click()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => inputRef.current?.click()}
+            disabled={outOfUploads}
+          >
             <Icon.Upload size={16} />
             Choose a file
           </button>
         </div>
       </label>
+      {left !== null && !error && (
+        <p className={outOfUploads ? "error" : "upload-quota"} role={outOfUploads ? "alert" : undefined}>
+          {outOfUploads
+            ? `You've used today's ${usage!.limit} free uploads.${usage!.resetAt ? ` You can upload again at ${formatTime(usage!.resetAt)}.` : ""}`
+            : `${left} of ${usage!.limit} free uploads left today.`}
+        </p>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
