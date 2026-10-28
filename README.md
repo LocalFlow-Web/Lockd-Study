@@ -44,6 +44,10 @@ To turn on accounts:
 4. From **Project Settings → API Keys**, add the Project URL and the **publishable** key to `.env.local` (see `.env.example`). Never put the secret key in the app.
 5. Restart `npm run dev`.
 
+6. For "Forgot your password?": in **Authentication → Emails → Reset Password**, replace the template body with `supabase/reset-password-email.html`. It emails a 6-digit code instead of a link, so it works from any device.
+
+**Email delivery:** Supabase's built-in email only delivers to members of your Supabase team, about 2 emails per hour. Before other people use Lockd, connect a real email provider (Resend, Postmark, Brevo, etc.) in **Authentication → Emails → SMTP Settings**, or password reset codes won't reach them.
+
 Then `/app` requires signing in, classes and study sets save to the account (and sync across devices), and each free account gets 3 uploads per rolling 24 hours (`DAILY_UPLOAD_LIMIT`). A user with `plan = 'pro'` in the `profiles` table has no limit; that's where the paid tier will plug in. Uploads are tracked in the `uploads` table with model and token counts, so you can see cost per person.
 
 ## Where things live
@@ -60,7 +64,8 @@ Then `/app` requires signing in, classes and study sets save to the account (and
 | `src/lib/store.tsx` | Saves classes and study sets: to the account when signed in, otherwise in the browser |
 | `src/lib/supabase/` | Login clients, upload limit checks |
 | `src/middleware.ts` | Keeps sessions fresh and sends signed-out visitors to /login |
-| `src/app/login/page.tsx` | Sign in and create account |
+| `src/app/login/page.tsx` | Sign in, create account, and reset a forgotten password |
+| `supabase/reset-password-email.html` | Email template for password reset codes |
 | `supabase/schema.sql` | Database tables and security rules |
 | `src/lib/demo.ts` | The sample study set |
 | `src/app/globals.css` | All styles and design tokens |

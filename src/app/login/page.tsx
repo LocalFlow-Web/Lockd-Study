@@ -1,28 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { Wordmark } from "@/components/bits";
-import { PASSWORD_RULES, passwordIsStrong } from "@/lib/password";
-import { authEnabled } from "@/lib/supabase/config";
+import { PasswordInput } from "@/components/PasswordInput";
+import { passwordIsStrong } from "@/lib/password";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { authEnabled } from "@/lib/supabase/config";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
+
+// Turns Supabase auth errors into plain, actionable messages.
+function friendly(error: { message: string; code?: string }): string {
+  const msg = error.message.toLowerCase();
+  const code = error.code ?? "";
+  if (msg.includes("invalid login")) return "That email and password don't match. Check them, or create an account.";
+  if (code === "same_password" || msg.includes("different from the old"))
+    return "That's your current password. Pick a new one.";
+  if (code === "weak_password" || msg.includes("password should"))
+    return "That password isn't strong enough. Make sure it ticks every box on the checklist.";
+  if (msg.includes("already registered")) return "There's already an account with that email. Sign in instead.";
+  if (code === "otp_expired" || msg.includes("expired") || msg.includes("invalid"))
+    return "That code is wrong or has expired. Check it, or send a new code.";
+  if (code === "email_address_not_authorized" || msg.includes("not authorized"))
+    return "Lockd can't send email to that address yet. Email sending is still being set up.";
+  const wait = /after (\d+) seconds?/.exec(error.message);
+  if (wait) return `Wait ${wait[1]} seconds before asking for another code.`;
+  if (msg.includes("rate limit")) return "Too many tries. Wait a minute and try again.";
+  return error.message;
+}
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next")?.startsWith("/app") ? params.get("next")! : "/app";
-  const [mode, setMode] = useState<Mode>(params.get("mode") === "signup" ? "signup" : "signin");
+  const initial = params.get("mode");
+  const [mode, setMode] = useState<Mode>(initial === "signup" ? "signup" : initial === "forgot" ? "forgot" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const strong = passwordIsStrong(password);
+
+  // Forgot password: first send a code, then enter it with a new password.
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   if (!authEnabled) {
     return (
@@ -32,7 +63,24 @@ function LoginForm() {
     );
   }
 
-  async function submit(e: React.FormEvent) {
+  const strong = passwordIsStrong(password);
+
+  function switchTo(m: Mode) {
+    setMode(m);
+    setError(null);
+    setNotice(null);
+    setPassword("");
+    setCodeSent(false);
+    setCode("");
+    setVerified(false);
+  }
+
+  function done() {
+    router.replace(next);
+    router.refresh();
+  }
+
+  async function signInOrUp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setNotice(null);
@@ -49,18 +97,7 @@ function LoginForm() {
     setBusy(false);
 
     if (error) {
-      const msg = error.message.toLowerCase();
-      setError(
-        msg.includes("invalid login")
-          ? "That email and password don't match. Check them, or create an account."
-          : error.code === "weak_password" || msg.includes("password should")
-            ? "That password isn't strong enough. Make sure it ticks every box on the checklist."
-            : msg.includes("already registered")
-            ? "There's already an account with that email. Sign in instead."
-            : msg.includes("rate limit")
-              ? "Too many tries. Wait a minute and try again."
-              : error.message,
-      );
+      setError(friendly(error));
       return;
     }
     if (!data.session) {
@@ -69,12 +106,148 @@ function LoginForm() {
       setMode("signin");
       return;
     }
-    router.replace(next);
-    router.refresh();
+    done();
+  }
+
+  async function sendCode(e?: React.FormEvent) {
+    e?.preventDefault();
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    const { error } = await supabaseBrowser().auth.resetPasswordForEmail(email.trim());
+    setBusy(false);
+    if (error) {
+      setError(friendly(error));
+      return;
+    }
+    setCodeSent(true);
+    setCooldown(60);
+    setNotice(
+      `If there's an account for ${email.trim()}, we just emailed it a code. Check your spam folder if it's not there in a minute.`,
+    );
+  }
+
+  async function resetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!strong) {
+      setError("Your new password needs everything on the checklist.");
+      return;
+    }
+    setBusy(true);
+    const supabase = supabaseBrowser();
+
+    // The code signs them in; it only works once, so skip it on a retry.
+    if (!verified) {
+      const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
+      if (error) {
+        setBusy(false);
+        setError(friendly(error));
+        return;
+      }
+      setVerified(true);
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) {
+      setError(friendly(error));
+      return;
+    }
+    done();
+  }
+
+  if (mode === "forgot") {
+    return (
+      <form className="auth-card" onSubmit={codeSent ? resetPassword : sendCode}>
+        <h1>Reset your password</h1>
+        <p className="page-sub">
+          {codeSent
+            ? "Enter the code from the email and pick a new password."
+            : "Enter the email you signed up with and we'll send you a code to reset your password."}
+        </p>
+
+        <label className="field">
+          <span>Email</span>
+          <input
+            className="input"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            readOnly={codeSent}
+          />
+        </label>
+
+        {codeSent && (
+          <>
+            {!verified && (
+              <label className="field">
+                <span>Code from the email</span>
+                <input
+                  className="input code-input"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6,10}"
+                  maxLength={10}
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                />
+              </label>
+            )}
+            <PasswordInput
+              id="new-password"
+              label="New password"
+              value={password}
+              onChange={setPassword}
+              autoComplete="new-password"
+              checklist
+            />
+          </>
+        )}
+
+        {notice && (
+          <p className="banner" role="status" style={{ margin: 0 }}>
+            {notice}
+          </p>
+        )}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+
+        {codeSent ? (
+          <button className="btn btn-primary" type="submit" disabled={busy || !strong || (!verified && code.length < 6)}>
+            {busy ? "One sec…" : "Reset password"}
+          </button>
+        ) : (
+          <button className="btn btn-primary" type="submit" disabled={busy || !email}>
+            {busy ? "Sending…" : "Send code"}
+          </button>
+        )}
+
+        <p className="auth-switch">
+          {codeSent && !verified && (
+            <>
+              <button type="button" onClick={() => sendCode()} disabled={busy || cooldown > 0}>
+                {cooldown > 0 ? `Send a new code in ${cooldown}s` : "Send a new code"}
+              </button>
+              <br />
+            </>
+          )}
+          <button type="button" onClick={() => switchTo("signin")}>
+            Back to sign in
+          </button>
+        </p>
+      </form>
+    );
   }
 
   return (
-    <form className="auth-card" onSubmit={submit}>
+    <form className="auth-card" onSubmit={signInOrUp}>
       <h1>{mode === "signin" ? "Sign in" : "Create your account"}</h1>
       <p className="page-sub">
         {mode === "signin"
@@ -93,45 +266,21 @@ function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
         />
       </label>
-      <div className="field">
-        <label htmlFor="password">Password</label>
-        <div className="password-wrap">
-          <input
-            id="password"
-            className="input"
-            type={showPassword ? "text" : "password"}
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            aria-describedby={mode === "signup" ? "password-rules" : undefined}
-          />
-          <button
-            type="button"
-            className="password-toggle"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-pressed={showPassword}
-          >
-            {showPassword ? "Hide" : "Show"}
-          </button>
-        </div>
-        {mode === "signup" && (
-          <ul className="rules" id="password-rules" aria-label="Password requirements">
-            {PASSWORD_RULES.map((r) => {
-              const ok = r.test(password);
-              return (
-                <li key={r.id} data-ok={ok}>
-                  <span className="rule-mark" aria-hidden="true">
-                    {ok ? "✓" : ""}
-                  </span>
-                  {r.label}
-                  <span className="visually-hidden">{ok ? " (done)" : " (missing)"}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+
+      <PasswordInput
+        id="password"
+        label="Password"
+        value={password}
+        onChange={setPassword}
+        autoComplete={mode === "signin" ? "current-password" : "new-password"}
+        checklist={mode === "signup"}
+      />
+
+      {mode === "signin" && (
+        <button type="button" className="forgot-link" onClick={() => switchTo("forgot")}>
+          Forgot your password?
+        </button>
+      )}
 
       {error && (
         <p className="error" role="alert">
@@ -150,13 +299,7 @@ function LoginForm() {
 
       <p className="auth-switch">
         {mode === "signin" ? "New to Lockd?" : "Already have an account?"}{" "}
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === "signin" ? "signup" : "signin");
-            setError(null);
-          }}
-        >
+        <button type="button" onClick={() => switchTo(mode === "signin" ? "signup" : "signin")}>
           {mode === "signin" ? "Create an account" : "Sign in"}
         </button>
       </p>
