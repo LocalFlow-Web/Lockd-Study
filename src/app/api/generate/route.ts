@@ -7,10 +7,13 @@ import type { StudyMaterial } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Vercel rejects request bodies over 4.5 MB, so stay under that when deployed.
-// Locally there's no such limit. Before launch, large PDFs should upload to
-// storage first (Supabase) and be passed to this route by reference.
-const MAX_BYTES = process.env.VERCEL ? 4.4 * 1024 * 1024 : 25 * 1024 * 1024;
+// Whole-PDF uploads. Vercel rejects request bodies over 4.5 MB, so stay under
+// that when deployed. Locally the cap is the Claude API's request size.
+// Bigger lectures don't hit this: the browser extracts their text and sends
+// that instead (see src/lib/extract-client.ts).
+const MAX_BYTES = process.env.VERCEL ? 4.4 * 1024 * 1024 : 22 * 1024 * 1024;
+// Extracted text: about 150k tokens. Real lectures are far below this.
+const MAX_TEXT_CHARS = 600_000;
 const MODEL = process.env.LOCKD_MODEL || "claude-haiku-5-5";
 
 const SCHEMA = {
@@ -91,67 +94,90 @@ Quiz: 20 multiple-choice questions with exactly 4 options each (fewer only if th
 
 Only use what's in the document. If something is unclear in the source, leave it out rather than guessing. For PowerPoint text, speaker notes often hold the professor's explanations: use them.`;
 
-export async function POST(req: Request) {
+type Source =
+  | { type: "base64"; media_type: "application/pdf"; data: string }
+  | { type: "text"; media_type: "text/plain"; data: string };
+
+const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
+
+// Two ways in: JSON with text the browser already extracted (PowerPoints and
+// big PDFs), or a multipart upload of a whole PDF (or a .pptx, as a fallback).
+async function readUpload(req: Request): Promise<{ fileName: string; source: Source } | NextResponse> {
+  if (req.headers.get("content-type")?.includes("application/json")) {
+    let body: { fileName?: string; text?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return fail("Bad request.", 400);
+    }
+    const text = (body.text ?? "").trim();
+    if (!text) return fail("No text came through. Try the upload again.", 400);
+    if (text.length > MAX_TEXT_CHARS) {
+      return fail("That lecture has a huge amount of text. Split it into two files and upload each one.", 413);
+    }
+    return { fileName: body.fileName || "Lecture", source: { type: "text", media_type: "text/plain", data: text } };
+  }
+
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return NextResponse.json({ error: "Upload a PDF file." }, { status: 400 });
+    return fail("Upload a PDF or PowerPoint file.", 400);
   }
-
   const file = form.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Upload a PDF or PowerPoint file." }, { status: 400 });
-  }
+  if (!(file instanceof File)) return fail("Upload a PDF or PowerPoint file.", 400);
 
   const lower = file.name.toLowerCase();
   const kind = lower.endsWith(".pdf") || file.type === "application/pdf" ? "pdf" : lower.endsWith(".pptx") ? "pptx" : null;
   if (!kind) {
-    const hint = lower.endsWith(".ppt") || lower.endsWith(".key")
-      ? "Open it and save it as .pptx or PDF, then try again."
-      : "Upload a PDF or a PowerPoint (.pptx) file.";
-    return NextResponse.json({ error: `Lockd can't read that file type. ${hint}` }, { status: 400 });
+    const hint =
+      lower.endsWith(".ppt") || lower.endsWith(".key")
+        ? "Open it and save it as .pptx or PDF, then try again."
+        : "Upload a PDF or a PowerPoint (.pptx) file.";
+    return fail(`Lockd can't read that file type. ${hint}`, 400);
   }
   if (file.size > MAX_BYTES) {
-    const mb = Math.floor(MAX_BYTES / 1024 / 1024);
-    return NextResponse.json({ error: `That file is over ${mb} MB. Try splitting it into smaller parts.` }, { status: 413 });
+    return fail("That file is too big to send whole. Reload the page and upload it again.", 413);
   }
 
   const bytes = await file.arrayBuffer();
-
-  // PowerPoint: pull the slide text and speaker notes out of the file.
-  let slideText = "";
-  if (kind === "pptx") {
-    try {
-      slideText = slidesToText(await extractPptx(bytes));
-    } catch {
-      return NextResponse.json(
-        { error: "Couldn't open that PowerPoint. Save it again as .pptx, or export it as a PDF." },
-        { status: 400 },
-      );
-    }
-    if (slideText.replace(/--- Slide \d+ ---|\(no text on this slide[^)]*\)/g, "").trim().length < 40) {
-      return NextResponse.json(
-        { error: "Those slides are mostly pictures, so there's no text to read. Export the deck as a PDF and upload that instead." },
-        { status: 422 },
-      );
-    }
+  if (kind === "pdf") {
+    return {
+      fileName: file.name,
+      source: { type: "base64", media_type: "application/pdf", data: Buffer.from(bytes).toString("base64") },
+    };
   }
+
+  let slideText: string;
+  try {
+    slideText = slidesToText(await extractPptx(bytes));
+  } catch {
+    return fail("Couldn't open that PowerPoint. Save it again as .pptx, or export it as a PDF.", 400);
+  }
+  if (slideText.replace(/--- Slide \d+ ---|\(no text on this slide[^)]*\)/g, "").trim().length < 40) {
+    return fail(
+      "Those slides are mostly pictures, so there's no text to read. Export the deck as a PDF and upload that instead.",
+      422,
+    );
+  }
+  return { fileName: file.name, source: { type: "text", media_type: "text/plain", data: slideText } };
+}
+
+export async function POST(req: Request) {
+  const upload = await readUpload(req);
+  if (upload instanceof NextResponse) return upload;
+  const { fileName, source } = upload;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   // Demo mode: no key yet, so return sample material after a short pause.
   if (!apiKey) {
     await new Promise((r) => setTimeout(r, 1800));
-    const material: StudyMaterial = { ...DEMO_MATERIAL, title: titleFromFileName(file.name), demo: true };
+    const material: StudyMaterial = { ...DEMO_MATERIAL, title: titleFromFileName(fileName), demo: true };
     return NextResponse.json(material);
   }
 
   const client = new Anthropic({ apiKey });
-  const source =
-    kind === "pdf"
-      ? ({ type: "base64", media_type: "application/pdf", data: Buffer.from(bytes).toString("base64") } as const)
-      : ({ type: "text", media_type: "text/plain", data: slideText } as const);
 
   try {
     const message = await client.messages.create({
@@ -162,7 +188,7 @@ export async function POST(req: Request) {
         {
           role: "user",
           content: [
-            { type: "document", source, title: file.name },
+            { type: "document", source, title: fileName },
             { type: "text", text: INSTRUCTIONS },
           ],
         },
@@ -177,7 +203,7 @@ export async function POST(req: Request) {
     parsed.quiz = parsed.quiz.filter((q) => q.options.length >= 2 && q.answerIndex >= 0 && q.answerIndex < q.options.length);
 
     console.log(
-      `[generate] ${file.name}: ${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens`,
+      `[generate] ${fileName} (${source.type === "text" ? "text" : "pdf"}): ${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens`,
     );
 
     return NextResponse.json({ ...parsed, demo: false } satisfies StudyMaterial);
