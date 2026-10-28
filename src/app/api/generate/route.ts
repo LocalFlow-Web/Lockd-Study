@@ -203,7 +203,7 @@ export async function POST(req: Request) {
     parsed.quiz = parsed.quiz.filter((q) => q.options.length >= 2 && q.answerIndex >= 0 && q.answerIndex < q.options.length);
 
     console.log(
-      `[generate] ${fileName} (${source.type === "text" ? "text" : "pdf"}): ${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens`,
+      `[generate] ${message.model} | ${fileName} (${source.type === "text" ? "text" : "pdf"}): ${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens`,
     );
 
     return NextResponse.json({ ...parsed, demo: false } satisfies StudyMaterial);
