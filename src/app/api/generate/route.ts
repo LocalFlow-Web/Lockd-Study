@@ -8,10 +8,9 @@ import type { StudyMaterial } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Whole-PDF uploads. Vercel rejects request bodies over 4.5 MB, so stay under
-// that when deployed. Locally the cap is the Claude API's request size.
-// Bigger lectures don't hit this: the browser extracts their text and sends
-// that instead (see src/lib/extract-client.ts).
+// Whole-PDF uploads. Vercel rejects request bodies over 4.5 MB. The browser
+// only sends PDFs up to 4 MB whole and extracts the text from bigger ones
+// (see src/lib/extract-client.ts), so this is just a backstop.
 const MAX_BYTES = process.env.VERCEL ? 4.4 * 1024 * 1024 : 22 * 1024 * 1024;
 // Extracted text: about 150k tokens. Real lectures are far below this.
 const MAX_TEXT_CHARS = 600_000;

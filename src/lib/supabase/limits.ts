@@ -7,7 +7,18 @@ export type Signed = { supabase: Supa; userId: string };
 
 // In cloud mode, API routes need a signed-in user. Returns null in local mode.
 export async function requireUser(): Promise<Signed | null | NextResponse> {
-  if (!authEnabled) return null;
+  if (!authEnabled) {
+    // Local mode is for your own computer. A live site without logins would
+    // let anyone spend your API credits, so refuse instead.
+    if (process.env.VERCEL) {
+      console.error("[limits] Supabase settings are missing on this deployment; uploads are turned off.");
+      return NextResponse.json(
+        { error: "Uploads are turned off: logins aren't set up on this site yet." },
+        { status: 503 },
+      );
+    }
+    return null;
+  }
   const supabase = await supabaseServer();
   const userId = await currentUserId(supabase);
   if (!userId) return NextResponse.json({ error: "Sign in to upload lectures." }, { status: 401 });

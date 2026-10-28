@@ -4,7 +4,7 @@ Upload a lecture (PDF or PowerPoint .pptx) and get clean notes, flashcards, and 
 
 PowerPoint files are read as text: every slide plus the speaker notes. Slides that are only pictures or diagrams come through empty, so for diagram-heavy decks, export to PDF and upload that.
 
-File size doesn't matter for PowerPoints or big PDFs: the browser pulls the text out and uploads only that (an 80 MB deck sends a few KB). PDFs up to 20 MB are sent whole so Claude can also see their diagrams.
+File size doesn't matter for PowerPoints or big PDFs: the browser pulls the text out and uploads only that (an 80 MB deck sends a few KB). PDFs up to 4 MB are sent whole so Claude can also see their diagrams (Vercel caps request bodies at 4.5 MB).
 
 ## Run it on your computer
 
@@ -44,7 +44,7 @@ To turn on accounts:
 4. From **Project Settings → API Keys**, add the Project URL and the **publishable** key to `.env.local` (see `.env.example`). Never put the secret key in the app.
 5. Restart `npm run dev`.
 
-6. For "Forgot your password?": in **Authentication → URL Configuration → Redirect URLs**, add `http://localhost:3000/**` (and later your live site, like `https://your-app.vercel.app/**`). The reset email's link opens `/reset-password`, which signs the person in and lets them pick a new password. It works in any browser or device. Once custom SMTP is set up, you can also paste `supabase/reset-password-email.html` into **Authentication → Emails → Reset Password** to add a 6-digit code.
+6. For "Forgot your password?": in **Authentication → URL Configuration → Redirect URLs**, add `http://localhost:3000/**` (and later your live site, like `https://your-app.vercel.app/**`). The reset email's link opens `/reset-password`, which signs the person in and lets them pick a new password. It works in any browser or device. Once custom SMTP is set up, you can also paste `supabase/reset-password-email.html` into **Authentication → Emails → Reset Password** to add a 6-digit code, then set `NEXT_PUBLIC_RESET_EMAIL_HAS_CODE=true` to show the code option.
 
 **Email delivery:** Supabase's built-in email only delivers to members of your Supabase team, about 2 emails per hour. Before other people use Lockd, connect a real email provider (Resend, Postmark, Brevo, etc.) in **Authentication → Emails → SMTP Settings**, or password reset codes won't reach them.
 
@@ -76,4 +76,3 @@ Then `/app` requires signing in, classes and study sets save to the account (and
 ## Before sharing with friends
 
 - Deploy on Vercel: import this repo, add `ANTHROPIC_API_KEY` in the project's environment variables.
-- Vercel caps whole-file uploads at 4.5 MB per request. PowerPoints and PDFs over 20 MB already avoid this (text only), but PDFs between 4.5 and 20 MB will need to upload to storage first (planned with Supabase), or be sent as text.

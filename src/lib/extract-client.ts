@@ -5,8 +5,9 @@
 import { extractPptx, slidesToText } from "./pptx";
 
 // PDFs at or under this size are sent whole, so Claude can also see diagrams.
-// Bigger ones are sent as text only.
-export const PDF_DIRECT_MAX = 20 * 1024 * 1024;
+// Bigger ones are sent as text only. Vercel rejects request bodies over
+// 4.5 MB, so stay under that.
+export const PDF_DIRECT_MAX = 4 * 1024 * 1024;
 
 export async function pptxToText(file: File): Promise<string> {
   return slidesToText(await extractPptx(await file.arrayBuffer()));

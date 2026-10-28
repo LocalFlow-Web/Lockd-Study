@@ -12,6 +12,11 @@ import { sendResetEmail } from "@/lib/supabase/recovery";
 
 type Mode = "signin" | "signup" | "forgot";
 
+// Supabase's default reset email only has a link. Once custom SMTP is set up
+// and supabase/reset-password-email.html is pasted in (it adds a 6-digit
+// code), set NEXT_PUBLIC_RESET_EMAIL_HAS_CODE=true to offer code entry too.
+const RESET_EMAIL_HAS_CODE = process.env.NEXT_PUBLIC_RESET_EMAIL_HAS_CODE === "true";
+
 // Turns Supabase auth errors into plain, actionable messages.
 function friendly(error: { message: string; code?: string }): string {
   const msg = error.message.toLowerCase();
@@ -246,7 +251,7 @@ function LoginForm() {
                 {cooldown > 0 ? `Send another email in ${cooldown}s` : "Send another email"}
               </button>
               <br />
-              {!useCode && (
+              {RESET_EMAIL_HAS_CODE && !useCode && (
                 <>
                   <button type="button" onClick={() => setUseCode(true)}>
                     Got a 6-digit code instead?
